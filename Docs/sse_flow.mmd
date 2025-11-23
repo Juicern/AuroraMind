@@ -1,0 +1,8 @@
+sequenceDiagram
+    participant FE as Frontend
+    participant GO as Go App
+    FE->>GO: EventSource('/messages/stream')
+    GO-->>FE: event: token {delta: "..."}
+    GO-->>FE: event: token {delta: "..."}
+    GO-->>FE: event: done {metadata}
+    FE->>FE: Render tokens in UI

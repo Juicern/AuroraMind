@@ -1,0 +1,38 @@
+flowchart LR
+    subgraph FE[Frontend - React/TypeScript]
+        FEChat[Chat Interface<br/>SSE Client]
+        FEDocs[Document Upload UI]
+        FESessions[Session Management UI]
+    end
+
+    subgraph GO[Go App Service<br/>REST + SSE]
+        Auth[JWT Auth Middleware]
+        API[REST API Handlers]
+        SSE[Streaming Handler]
+        GODB[(PostgreSQL Client)]
+        AIClient[/HTTP Client<br/>to Python AI Service/]
+    end
+
+    subgraph PY[Python AI Service<br/>FastAPI + LangChain]
+        Ingest[Document Ingestion<br/>Chunk+Embed Pipeline]
+        RAG[RAG Query Pipeline<br/>Streaming Generator]
+        PGPY[(PostgreSQL)]
+        PC[(Pinecone Vector DB)]
+        OA[(OpenAI API)]
+    end
+
+    subgraph Storage[Document Storage]
+        Local[(Local Filesystem)]
+        S3[(Amazon S3)]
+    end
+
+    FEChat -->|SSE + REST| GO
+    FEDocs -->|Upload File| GO
+    GO -->|Trigger Ingest| PY
+    GO <--> GODB
+    PY -->|Read Files| Local
+    PY --> S3
+    PY <--> OA
+    PY <--> PC
+    PY <--> PGPY
+    GO -->|SSE Stream Tokens| FEChat

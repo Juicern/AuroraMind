@@ -1,0 +1,9 @@
+flowchart LR
+
+    FE -->|upload| GO
+
+    GO -->|if STORAGE_BACKEND=local| LocalFS[(Local Filesystem)]
+    GO -->|if STORAGE_BACKEND=s3| S3[(Amazon S3)]
+
+    PY -->|read file| LocalFS
+    PY --> S3

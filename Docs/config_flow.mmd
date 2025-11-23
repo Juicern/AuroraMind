@@ -1,0 +1,17 @@
+flowchart TD
+
+    subgraph Env[Environment Variables]
+        ENV1[OPENAI_API_KEY]
+        ENV2[PINECONE_API_KEY]
+        ENV3[DB_DSN]
+        ENV4[STORAGE_BACKEND]
+        ENV5[JWT_SECRET]
+    end
+
+    subgraph Services
+        GoSvc[Go App Service]
+        PySvc[Python AI Service]
+    end
+
+    Env --> GoSvc
+    Env --> PySvc

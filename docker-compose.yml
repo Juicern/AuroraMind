@@ -1,0 +1,57 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:15
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: aurora
+      POSTGRES_PASSWORD: aurora
+      POSTGRES_DB: auroramind
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  ai-service:
+    build: ./ai-service
+    environment:
+      APP_PORT: 9000
+      SERVICE_TOKEN: local-demo
+      OPENAI_CHAT_MODEL: gpt-4.1-mini
+      PINECONE_INDEX_NAME: kb-index
+    ports:
+      - "9000:9000"
+    depends_on:
+      - postgres
+
+  app-service:
+    build: ./app-service
+    environment:
+      APP_PORT: 8080
+      AI_SERVICE_URL: http://ai-service:9000
+      SERVICE_TOKEN: local-demo
+      LOCAL_STORAGE_PATH: /data/storage
+    ports:
+      - "8080:8080"
+    depends_on:
+      - ai-service
+      - postgres
+    volumes:
+      - appdata:/data/storage
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_APP_API_BASE: http://localhost:8080
+    environment:
+      VITE_APP_API_BASE: http://localhost:8080
+    ports:
+      - "4173:4173"
+    depends_on:
+      - app-service
+
+volumes:
+  pgdata:
+  appdata:

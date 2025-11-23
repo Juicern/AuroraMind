@@ -1,0 +1,13 @@
+.DS_Store
+.env
+.venv
+node_modules/
+frontend/node_modules/
+frontend/dist/
+app-service/auroramind-app
+app-service/storage/
+app-service/storage**
+app-service/storage/**
+ai-service/.venv/
+*.log
+*.tmp

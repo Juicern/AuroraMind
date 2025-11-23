@@ -1,0 +1,29 @@
+sequenceDiagram
+    autonumber
+    participant FE as Frontend
+    participant GO as Go App Service
+    participant PG as PostgreSQL
+    participant PY as Python AI Service
+    participant FS as Local/S3 Storage
+    participant OA as OpenAI API
+    participant PC as Pinecone
+
+    FE->>GO: POST /v1/kb/{id}/documents (file upload)
+    GO->>FS: Save file locally/S3
+    GO->>PG: INSERT document metadata (status=pending)
+    GO->>PY: POST /internal/ingest (doc_id, storage_uri)
+
+    PY->>FS: Load file
+    PY->>PY: Extract & clean text
+    PY->>PY: Chunk text
+
+    loop for each chunk
+        PY->>PG: INSERT kb_chunk
+        PY->>OA: Create embedding
+        OA-->>PY: embedding
+        PY->>PC: Upsert vector (namespace=collection)
+    end
+
+    PY->>PG: UPDATE document status → ready
+    PY-->>GO: {status: "done"}
+    GO-->>FE: ingestion updated

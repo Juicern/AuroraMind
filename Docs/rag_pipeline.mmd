@@ -1,0 +1,12 @@
+flowchart TD
+
+    Q[User Query] --> EmbedQ[Embed Query via OpenAI]
+    EmbedQ --> Retrieve[Retrieve k Chunks<br/>from Pinecone]
+    Retrieve --> Rank[Sort by relevance score]
+
+    subgraph Prompting
+        Rank --> BuildPrompt[Build RAG Prompt<br/>System + Context + Question]
+    end
+
+    BuildPrompt --> CallLLM[OpenAI ChatCompletion (streaming)]
+    CallLLM --> Stream[Stream tokens to Go]

@@ -1,0 +1,61 @@
+erDiagram
+    users ||--o{ chat_sessions : has
+    chat_sessions ||--o{ chat_messages : contains
+    kb_collections ||--o{ kb_documents : contains
+    kb_documents ||--o{ kb_chunks : contains
+    chat_messages ||--o{ chat_message_context_chunks : sources
+    kb_chunks ||--o{ chat_message_context_chunks : referenced
+
+    users {
+        uuid id PK
+        text email
+        text password_hash
+    }
+
+    chat_sessions {
+        uuid id PK
+        uuid user_id FK
+        text title
+        uuid default_kb_id
+    }
+
+    chat_messages {
+        uuid id PK
+        uuid session_id FK
+        text role
+        text content
+        jsonb token_usage
+        text model
+        uuid parent_message_id
+    }
+
+    kb_collections {
+        uuid id PK
+        uuid user_id FK
+        text name
+        text description
+    }
+
+    kb_documents {
+        uuid id PK
+        uuid collection_id FK
+        text title
+        text storage_uri
+        text status
+        text status_message
+    }
+
+    kb_chunks {
+        uuid id PK
+        uuid document_id FK
+        int chunk_index
+        text text
+        int token_count
+    }
+
+    chat_message_context_chunks {
+        uuid message_id FK
+        uuid chunk_id FK
+        int rank
+        float score
+    }

@@ -1,0 +1,35 @@
+sequenceDiagram
+    autonumber
+    participant FE as Frontend (React)
+    participant GO as Go App Service
+    participant PG as PostgreSQL
+    participant PY as Python AI Service
+    participant PC as Pinecone
+    participant OA as OpenAI API
+
+    FE->>GO: POST /v1/sessions/{id}/messages/stream (SSE)
+    GO->>PG: INSERT user message
+    GO->>PG: LOAD last N messages
+    GO->>PY: POST /internal/rag/query/stream
+
+    PY->>OA: Embed(question)
+    OA-->>PY: Embedding vector
+
+    loop Vector retrieval per KB
+        PY->>PC: Query namespace (KB_ID)
+        PC-->>PY: Top-k chunks
+    end
+
+    PY->>OA: ChatCompletion(stream=True)
+    OA-->>PY: streaming tokens (delta)
+
+    loop streaming tokens
+        PY-->>GO: chunked HTTP (partial delta)
+        GO-->>FE: SSE event "token"
+    end
+
+    PY-->>GO: final response metadata
+    GO->>PG: INSERT assistant message
+    GO->>PG: INSERT context-chunk mapping
+
+    GO-->>FE: SSE event "done"

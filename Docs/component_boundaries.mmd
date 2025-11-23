@@ -1,0 +1,26 @@
+flowchart LR
+
+    subgraph Go[Go App Service]
+        Auth[JWT Auth]
+        REST[REST API]
+        SSE[SSE Streaming]
+        Sessions[Session Mgmt]
+        KBMeta[KB Metadata Mgmt]
+    end
+
+    subgraph Py[Python AI Service]
+        Ingest[Ingestion Pipeline]
+        Embed[Embedding Engine]
+        Vector[RAG + Vector Retrieval]
+        Gen[LLM Generation]
+    end
+
+    subgraph DBs[Databases]
+        PG[(PostgreSQL)]
+        PC[(Pinecone)]
+    end
+
+    Go --> Py
+    Go --> PG
+    Py --> PG
+    Py --> PC

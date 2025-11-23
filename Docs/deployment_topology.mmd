@@ -1,0 +1,26 @@
+flowchart TD
+
+    subgraph Local
+        DevFE[React Dev Server]
+        DevGo[Go App Service - Local]
+        DevPy[Python AI Service - Local]
+        DevPG[(PostgreSQL - Docker)]
+        Pinecone[(Pinecone SaaS)]
+    end
+
+    subgraph AWS EC2
+        EC2Go[Go App Service - EC2]
+        EC2Py[Python AI Service - EC2]
+        RDS[(PostgreSQL RDS)]
+        S3[AWS S3 Storage]
+    end
+
+    DevFE --> DevGo --> DevPy --> Pinecone
+    DevGo --> DevPG
+    DevPy --> DevPG
+
+    EC2Go --> EC2Py
+    EC2Go --> RDS
+    EC2Py --> RDS
+    EC2Py --> Pinecone
+    EC2Py --> S3
