@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import type { FormEvent } from 'react'
+import type { FormEvent, KeyboardEvent } from 'react'
 import './App.css'
 
 type ChatMessage = { role: 'user' | 'assistant'; content: string }
@@ -189,6 +189,18 @@ function App() {
     setStatus('Stream cancelled')
   }
 
+  const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter') {
+      if (e.metaKey || e.ctrlKey) {
+        return // allow newline with cmd/ctrl+Enter
+      }
+      e.preventDefault()
+      if (!isStreaming && chatInput.trim()) {
+        handleStream()
+      }
+    }
+  }
+
   const activeMessages = messages[activeSession] || []
 
   return (
@@ -279,6 +291,7 @@ function App() {
             value={chatInput}
             onChange={(e) => setChatInput(e.target.value)}
             disabled={!token || isStreaming}
+            onKeyDown={handleKeyDown}
           />
           <div className="chat-actions">
             <button onClick={handleStream} disabled={isStreaming || !chatInput || !activeSession || !token}>

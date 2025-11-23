@@ -140,9 +140,8 @@ async def rag_stream(request: Request) -> StreamingResponse:
     )
 
     async def token_stream() -> AsyncIterator[bytes]:
-        sources: List[Dict[str, str]] = []
         try:
-            context, sources = await retrieve_context(prompt, kb_id or "kb-default")
+            context, _sources = await retrieve_context(prompt, kb_id or "kb-default")
             chain = get_langchain_chain()
             async for chunk in chain.astream({"question": prompt, "context": context}):
                 yield chunk.encode("utf-8") + b"\n"
@@ -157,10 +156,6 @@ async def rag_stream(request: Request) -> StreamingResponse:
             for piece in synthetic:
                 await asyncio.sleep(0.12)
                 yield piece.encode("utf-8") + b"\n"
-
-        citations = {"sources": sources or [{"collection_id": kb_id or "default", "document_id": "demo-doc", "chunk_id": "chunk-1", "score": 0.9}]}
-        await asyncio.sleep(0.05)
-        yield json.dumps(citations).encode("utf-8") + b"\n"
 
     return StreamingResponse(token_stream(), media_type="text/plain")
 
@@ -207,7 +202,6 @@ def upsert_to_pinecone(pc: Pinecone, chunks: List[str], collection_id: str, doc_
                     "chunk_id": f"chunk-{i}",
                     "text": chunk,
                 },
-                "namespace": collection_id,
             }
         )
     index.upsert(vectors=vectors, namespace=collection_id)

@@ -326,11 +326,13 @@ func (s *Server) uploadDocument(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	absPath, _ := filepath.Abs(dstPath)
+
 	doc := Document{
 		ID:           documentID,
 		CollectionID: collectionID,
 		Title:        header.Filename,
-		StorageURI:   dstPath,
+		StorageURI:   absPath,
 		Status:       "uploaded",
 		UploadedAt:   time.Now(),
 	}
@@ -454,7 +456,7 @@ func writeSSEJSON(w http.ResponseWriter, payload any) {
 
 func escapeData(data string) string {
 	data = strings.ReplaceAll(data, "\n", " ")
-	return strings.TrimSpace(data)
+	return data
 }
 
 func firstNonEmpty(values ...string) string {

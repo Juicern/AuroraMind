@@ -25,7 +25,9 @@ ai-setup:
 
 ai-run:
 	cd ai-service && if [ ! -d $(AI_ENV) ]; then python3 -m venv $(AI_ENV) && source $(AI_ENV)/bin/activate && pip install -r requirements.txt; fi
-	cd ai-service && source $(AI_ENV)/bin/activate && APP_PORT=$(AI_PORT) uvicorn main:app --host 0.0.0.0 --port $(AI_PORT) --reload
+	cd ai-service && \
+		( [ -f ../.env ] && set -a && source ../.env && set +a || true ) && \
+		source $(AI_ENV)/bin/activate && APP_PORT=$(AI_PORT) uvicorn main:app --host 0.0.0.0 --port $(AI_PORT) --reload
 
 ai-stop:
 	- lsof -ti tcp:$(AI_PORT) | xargs kill -15

@@ -23,6 +23,7 @@ LOCAL_STORAGE_PATH=./storage \
 SERVICE_TOKEN=local-demo \
 go run main.go
 ```
+Note: Go now stores absolute `storage_uri` paths so the Python service can read files directly.
 
 3) Frontend  
 ```
@@ -51,6 +52,8 @@ docker compose up --build
 - `make go-run` – run Go app service pointing at local AI service
 - `make frontend-install` / `make frontend-dev` – install deps then run Vite dev server
 - `make compose-up` / `make compose-down` – full stack via Docker
+
+Frontend tip: Enter sends the message; Cmd/Ctrl+Enter inserts a newline in the chat box.
 
 ## Notable APIs
 - Frontend → Go  
