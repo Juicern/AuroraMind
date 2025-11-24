@@ -14,8 +14,8 @@ sequenceDiagram
     GO->>PY: POST /internal/ingest (doc_id, storage_uri)
 
     PY->>FS: Load file
-    PY->>PY: Extract & clean text
-    PY->>PY: Chunk text
+    PY->>PY: Extract & clean text (fails if no selectable text)
+    PY->>PY: Chunk text (text-only PDFs supported)
 
     loop for each chunk
         PY->>PG: INSERT kb_chunk
@@ -27,3 +27,9 @@ sequenceDiagram
     PY->>PG: UPDATE document status → ready
     PY-->>GO: {status: "done"}
     GO-->>FE: ingestion updated
+
+    alt User deletes document
+        FE->>GO: DELETE /v1/kb/{id}/documents/{doc_id}
+        GO->>PG: DELETE document metadata
+        GO->>FS: Remove stored file
+    end

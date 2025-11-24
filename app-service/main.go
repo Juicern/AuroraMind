@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -20,6 +21,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
 	"github.com/google/uuid"
+	_ "github.com/lib/pq"
 )
 
 type Config struct {
@@ -27,6 +29,7 @@ type Config struct {
 	AIServiceURL     string
 	ServiceToken     string
 	LocalStoragePath string
+	DBDSN            string
 }
 
 type ChatSession struct {
@@ -62,6 +65,7 @@ type Server struct {
 	documents map[string][]Document
 	mu       sync.Mutex
 	client   *http.Client
+	db       *sql.DB
 }
 
 func main() {
@@ -76,13 +80,27 @@ func main() {
 		},
 	}
 
+	if cfg.DBDSN != "" {
+		db, err := sql.Open("postgres", cfg.DBDSN)
+		if err != nil {
+			log.Fatalf("failed to open db: %v", err)
+		}
+		if err := db.Ping(); err != nil {
+			log.Fatalf("failed to ping db: %v", err)
+		}
+		server.db = db
+		if err := server.ensureDocumentsTable(); err != nil {
+			log.Fatalf("failed to ensure documents table: %v", err)
+		}
+	}
+
 	router := chi.NewRouter()
 	router.Use(middleware.Logger)
 	router.Use(middleware.RequestID)
 	router.Use(middleware.Recoverer)
 	router.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   []string{"*"},
-		AllowedMethods:   []string{"GET", "POST", "OPTIONS"},
+		AllowedMethods:   []string{"GET", "POST", "OPTIONS", "DELETE"},
 		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-Service-Token"},
 		AllowCredentials: false,
 	}))
@@ -102,6 +120,7 @@ func main() {
 
 		r.Post("/kb/{id}/documents", server.uploadDocument)
 		r.Get("/kb/{id}/documents", server.listDocuments)
+		r.Delete("/kb/{id}/documents/{docId}", server.deleteDocument)
 	})
 
 	addr := ":" + cfg.Port
@@ -127,6 +146,7 @@ func loadConfig() Config {
 		AIServiceURL:     strings.TrimSuffix(os.Getenv("AI_SERVICE_URL"), "/"),
 		ServiceToken:     os.Getenv("SERVICE_TOKEN"),
 		LocalStoragePath: storage,
+		DBDSN:            os.Getenv("DB_DSN"),
 	}
 }
 
@@ -337,9 +357,16 @@ func (s *Server) uploadDocument(w http.ResponseWriter, r *http.Request) {
 		UploadedAt:   time.Now(),
 	}
 
-	s.mu.Lock()
-	s.documents[collectionID] = append(s.documents[collectionID], doc)
-	s.mu.Unlock()
+	if s.db != nil {
+		if err := s.insertDocument(doc); err != nil {
+			http.Error(w, "failed to save document metadata", http.StatusInternalServerError)
+			return
+		}
+	} else {
+		s.mu.Lock()
+		s.documents[collectionID] = append(s.documents[collectionID], doc)
+		s.mu.Unlock()
+	}
 
 	go s.notifyIngest(doc)
 	writeJSON(w, http.StatusCreated, doc)
@@ -347,10 +374,67 @@ func (s *Server) uploadDocument(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) listDocuments(w http.ResponseWriter, r *http.Request) {
 	collectionID := chi.URLParam(r, "id")
-	s.mu.Lock()
-	docs := append([]Document{}, s.documents[collectionID]...)
-	s.mu.Unlock()
+	var docs []Document
+	if s.db != nil {
+		var err error
+		docs, err = s.fetchDocuments(collectionID)
+		if err != nil {
+			http.Error(w, "failed to load documents", http.StatusInternalServerError)
+			return
+		}
+	} else {
+		s.mu.Lock()
+		docs = append([]Document{}, s.documents[collectionID]...)
+		s.mu.Unlock()
+	}
 	writeJSON(w, http.StatusOK, docs)
+}
+
+func (s *Server) deleteDocument(w http.ResponseWriter, r *http.Request) {
+	collectionID := chi.URLParam(r, "id")
+	documentID := chi.URLParam(r, "docId")
+
+	var doc Document
+	if s.db != nil {
+		existing, err := s.fetchDocument(collectionID, documentID)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				http.Error(w, "document not found", http.StatusNotFound)
+				return
+			}
+			http.Error(w, "failed to load document", http.StatusInternalServerError)
+			return
+		}
+		doc = existing
+		if err := s.deleteDocumentDB(collectionID, documentID); err != nil {
+			http.Error(w, "failed to delete document", http.StatusInternalServerError)
+			return
+		}
+	} else {
+		s.mu.Lock()
+		docs := s.documents[collectionID]
+		index := -1
+		for i, d := range docs {
+			if d.ID == documentID {
+				index = i
+				doc = d
+				break
+			}
+		}
+		if index == -1 {
+			s.mu.Unlock()
+			http.Error(w, "document not found", http.StatusNotFound)
+			return
+		}
+		s.documents[collectionID] = append(docs[:index], docs[index+1:]...)
+		s.mu.Unlock()
+	}
+
+	if doc.StorageURI != "" {
+		_ = os.Remove(doc.StorageURI)
+	}
+
+	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted", "document_id": documentID})
 }
 
 func (s *Server) forwardToAI(ctx context.Context, tokenCh chan<- string, content, sessionID, kbID string) {
@@ -484,4 +568,62 @@ func sanitizeFileName(name string) string {
 			return '-'
 		}
 	}, name)
+}
+
+func (s *Server) ensureDocumentsTable() error {
+	stmt := `
+CREATE TABLE IF NOT EXISTS documents (
+  id TEXT PRIMARY KEY,
+  collection_id TEXT NOT NULL,
+  title TEXT NOT NULL,
+  storage_uri TEXT NOT NULL,
+  status TEXT,
+  status_message TEXT,
+  uploaded_at TIMESTAMP WITH TIME ZONE
+);`
+	_, err := s.db.Exec(stmt)
+	return err
+}
+
+func (s *Server) insertDocument(doc Document) error {
+	_, err := s.db.Exec(
+		`INSERT INTO documents (id, collection_id, title, storage_uri, status, status_message, uploaded_at)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+		doc.ID, doc.CollectionID, doc.Title, doc.StorageURI, doc.Status, doc.StatusMessage, doc.UploadedAt,
+	)
+	return err
+}
+
+func (s *Server) fetchDocuments(collectionID string) ([]Document, error) {
+	rows, err := s.db.Query(
+		`SELECT id, collection_id, title, storage_uri, status, status_message, uploaded_at
+		 FROM documents WHERE collection_id = $1 ORDER BY uploaded_at DESC`, collectionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var docs []Document
+	for rows.Next() {
+		var d Document
+		if err := rows.Scan(&d.ID, &d.CollectionID, &d.Title, &d.StorageURI, &d.Status, &d.StatusMessage, &d.UploadedAt); err != nil {
+			return nil, err
+		}
+		docs = append(docs, d)
+	}
+	return docs, rows.Err()
+}
+
+func (s *Server) fetchDocument(collectionID, docID string) (Document, error) {
+	var d Document
+	err := s.db.QueryRow(
+		`SELECT id, collection_id, title, storage_uri, status, status_message, uploaded_at
+		 FROM documents WHERE collection_id=$1 AND id=$2`, collectionID, docID,
+	).Scan(&d.ID, &d.CollectionID, &d.Title, &d.StorageURI, &d.Status, &d.StatusMessage, &d.UploadedAt)
+	return d, err
+}
+
+func (s *Server) deleteDocumentDB(collectionID, docID string) error {
+	_, err := s.db.Exec(`DELETE FROM documents WHERE collection_id=$1 AND id=$2`, collectionID, docID)
+	return err
 }

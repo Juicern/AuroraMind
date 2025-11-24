@@ -183,6 +183,24 @@ function App() {
     setUploading(false)
   }
 
+  const deleteDoc = async (docId: string) => {
+    if (!token) {
+      setStatus('Login required')
+      return
+    }
+    setStatus('Deleting document...')
+    const res = await fetch(`${API_BASE}/v1/kb/${kbId}/documents/${docId}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    if (res.ok) {
+      setStatus('Document deleted.')
+      fetchDocuments()
+    } else {
+      setStatus('Delete failed')
+    }
+  }
+
   const stopStream = () => {
     streamAbort.current?.abort()
     setIsStreaming(false)
@@ -245,6 +263,9 @@ function App() {
                 <div className="doc-title">{doc.title}</div>
                 <div className="doc-meta">{doc.status}</div>
                 <div className="doc-path">{doc.storage_uri}</div>
+                <button type="button" className="ghost" onClick={() => deleteDoc(doc.id)}>
+                  Delete
+                </button>
               </div>
             ))}
             {!documents.length && <p className="muted">No documents yet.</p>}

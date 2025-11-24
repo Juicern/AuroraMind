@@ -9,12 +9,12 @@ flowchart LR
         Auth[JWT Auth Middleware]
         API[REST API Handlers]
         SSE[Streaming Handler]
-        GODB[(PostgreSQL Client)]
+        GODB[(PostgreSQL<br/>Documents Metadata)]
         AIClient[/HTTP Client<br/>to Python AI Service/]
     end
 
     subgraph PY[Python AI Service<br/>FastAPI + LangChain]
-        Ingest[Document Ingestion<br/>Chunk+Embed Pipeline]
+        Ingest[Document Ingestion<br/>Chunk+Embed Pipeline<br/>(text-only PDFs)]
         RAG[RAG Query Pipeline<br/>Streaming Generator]
         PGPY[(PostgreSQL)]
         PC[(Pinecone Vector DB)]
@@ -28,7 +28,7 @@ flowchart LR
 
     FEChat -->|SSE + REST| GO
     FEDocs -->|Upload File| GO
-    GO -->|Trigger Ingest| PY
+    GO -->|Trigger Ingest/Deletes| PY
     GO <--> GODB
     PY -->|Read Files| Local
     PY --> S3
