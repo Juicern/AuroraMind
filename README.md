@@ -71,8 +71,8 @@ Frontend tip: Enter sends the message; Cmd/Ctrl+Enter inserts a newline in the c
 - Python: `APP_PORT`, `SERVICE_TOKEN`, `OPENAI_CHAT_MODEL`, `PINECONE_INDEX_NAME`
 - Frontend: `VITE_APP_API_BASE`
 
-## Next Steps
+## Next Steps (local-first)
 - Wire Postgres + migrations for sessions/messages/docs per TD schema.
-- Swap FastAPI stub with real OpenAI + Pinecone and connect to S3/local storage switch.
+- Swap FastAPI stub with real OpenAI + Pinecone.
 - Harden auth with real JWT signing/verification.
 - Add ingestion status polling and chunk provenance display in the UI.
