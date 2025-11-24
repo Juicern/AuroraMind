@@ -1,12 +1,26 @@
-flowchart TD
+flowchart TB
 
-    Q[User Query] --> EmbedQ[Embed Query via OpenAI]
-    EmbedQ --> Retrieve[Retrieve k Chunks<br/>from Pinecone]
-    Retrieve --> Rank[Sort by relevance score]
-
-    subgraph Prompting
-        Rank --> BuildPrompt[Build RAG Prompt<br/>System + Context + Question]
+    subgraph Ingestion_Flow ["Ingestion (top to bottom)"]
+        direction TB
+        FEUpload["FE Uploads PDF (text-only)"] --> GoStore["Go saves file to local storage 
+        and metadata to Postgres"]
+        GoStore --> AIIngest["Go calls /internal/ingest on AI"]
+        AIIngest --> Extract["AI extracts text (no OCR)"]
+        Extract --> Chunk["Chunk text"]
+        Chunk --> EmbedChunks["Embed chunks via OpenAI"]
+        EmbedChunks --> Pinecone["Upsert embeddings to Pinecone\nnamespace=collection_id"]
+        AIIngest --> PGMeta["Postgres metadata"]
+        GoStore --> PGMeta
     end
 
-    BuildPrompt --> CallLLM[OpenAI ChatCompletion (streaming)]
-    CallLLM --> Stream[Stream tokens to Go]
+    subgraph Chat_Flow ["Chat / RAG (top to bottom)"]
+        direction TB
+        UserMsg["FE sends chat message"] --> GoMsg["Go stores message 
+        and streams SSE"]
+        GoMsg --> AIRag["Go calls /internal/rag/query/stream"]
+        AIRag --> QueryEmbed["AI embeds user query via OpenAI"]
+        QueryEmbed --> Retrieve["Retrieve k chunks from Pinecone"]
+        Retrieve --> BuildPrompt["Build RAG prompt with context"]
+        BuildPrompt --> StreamLLM["OpenAI ChatCompletion (streaming)"]
+        StreamLLM --> GoSSE["Go re-streams tokens to FE via SSE"]
+    end
